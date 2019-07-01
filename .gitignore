@@ -1,0 +1,13 @@
+pids
+logs
+results
+tmp
+
+node_modules
+dist
+.env
+
+.DS_Store
+Thumbs.db
+
+yarn.lock
