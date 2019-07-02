@@ -7,7 +7,7 @@ import * as buildController from './controllers/build';
 dotenv.config();
 
 const app = express();
-app.set('port', process.env.PORT || 3000);
+app.set('port', process.env.PORT || 3030);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
