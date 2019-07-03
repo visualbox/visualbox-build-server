@@ -12,7 +12,10 @@ const cmd = (command: string, stdOut: (data: Buffer) => void, stdErr: (data: Buf
 };
 
 const doBuild = async (connection: WebSocketClient.connection, meta: IJobMeta) => {
-  const authorizationToken = meta.ECR_AUTH_DATA.authorizationToken.replace(/\s/g, '');
+  // TODO: proper & secure sanitization
+  const buff = Buffer.from(meta.ECR_AUTH_DATA.authorizationToken, 'base64');
+  const authData = buff.toString('utf8');
+  const [ user, password ] = authData.split(':');
 
   const proxyEndpoint = meta.ECR_AUTH_DATA.proxyEndpoint.replace(/\s/g, '');
   if (!isUri(proxyEndpoint)) {
@@ -20,8 +23,11 @@ const doBuild = async (connection: WebSocketClient.connection, meta: IJobMeta) =
     return;
   }
 
+  const buildId = meta.BUILD_ID;
   const tag = meta.IMAGE_TAG.replace(/\s/g, '');
   const repo = meta.IMAGE_REPO_NAME.replace(/\s/g, '');
+  const accoundId = meta.AWS_ACCOUNT_ID;
+  const region = meta.AWS_REGION.replace(/\s/g, '');
 
   const sendOutput = (data: Buffer) => {
     // connection.send(data.toString());
@@ -33,13 +39,13 @@ const doBuild = async (connection: WebSocketClient.connection, meta: IJobMeta) =
     console.log('Send ERROR', data.toString());
   };
 
-  execSync(`docker login -u AWS -p ${authorizationToken} ${proxyEndpoint}`);
+  execSync(`docker login -u ${user} -p ${password} ${proxyEndpoint}`);
 
   // execSync(`docker build -t ${repo}:${tag} .`);
-  await cmd(`docker build -t ${repo}:${tag} .`, sendOutput, sendError);
+  await cmd(`docker build -t ${repo}:${tag} builds/${buildId}`, sendOutput, sendError);
 
-  execSync(`docker tag ${repo}:${tag} ${proxyEndpoint}/${repo}:${tag}`);
-  execSync(`docker push ${proxyEndpoint}/${repo}:${tag}`);
+  execSync(`docker tag ${repo}:${tag} ${accoundId}.dkr.ecr.${region}.amazonaws.com/${repo}:${tag}`);
+  execSync(`docker push ${accoundId}.dkr.ecr.${region}.amazonaws.com/${repo}:${tag}`);
 };
 
 export default doBuild;

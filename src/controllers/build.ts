@@ -20,7 +20,7 @@ export const build = async (req: Request, res: Response, next: NextFunction) => 
   try {
     await download(meta.PRESIGNED_URL, archive);
   } catch (e) {
-    console.log('Failed to download archive: ', e);
+    console.log('Failed to download archive: ', e.message);
     return;
   }
 
@@ -28,7 +28,7 @@ export const build = async (req: Request, res: Response, next: NextFunction) => 
   try {
     await unzip(archive, `builds/${meta.BUILD_ID}`);
   } catch (e) {
-    console.log('Failed to extract archive: ', e);
+    console.log('Failed to extract archive: ', e.message);
     return;
   }
 

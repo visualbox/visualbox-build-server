@@ -13,7 +13,7 @@ const download = (url: string, dest: string): Promise<string> => {
       });
     }).on('error', (err: Error) => {
       unlink(dest, reject);
-      reject(err.message);
+      reject(err);
     });
   });
 };
