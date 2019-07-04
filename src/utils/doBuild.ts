@@ -1,51 +1,48 @@
-import { exec, execSync } from 'child_process';
-import { isUri } from 'valid-url';
-import * as WebSocketClient from 'websocket';
+import { spawn, spawnSync, SpawnSyncOptions } from 'child_process';
 
-const cmd = (command: string, stdOut: (data: Buffer) => void, stdErr: (data: Buffer) => void): Promise<any> => {
+const spawnStream = (
+  command: string,
+  args: readonly string[],
+  options: SpawnSyncOptions,
+  stdOut: (data: Buffer) => void,
+  stdErr: (data: Buffer) => void
+): Promise<any> => {
   return new Promise((resolve, reject) => {
-    const proc = exec(command);
+    const proc = spawn(command, args, options);
     proc.stdout.on('data', stdOut);
     proc.stderr.on('data', stdErr);
     proc.on('exit', resolve);
+    proc.on('error', reject);
   });
 };
 
-const doBuild = async (connection: WebSocketClient.connection, meta: IJobMeta) => {
-  // TODO: proper & secure sanitization
-  const buff = Buffer.from(meta.ECR_AUTH_DATA.authorizationToken, 'base64');
-  const authData = buff.toString('utf8');
-  const [ user, password ] = authData.split(':');
+const doBuild = async (
+  meta: IJobMeta,
+  stdOut: (data: Buffer) => void,
+  stdErr: (data: Buffer) => void
+) => {
 
-  const proxyEndpoint = meta.ECR_AUTH_DATA.proxyEndpoint.replace(/\s/g, '');
-  if (!isUri(proxyEndpoint)) {
-    console.log('Malformed proxy endpoint');
-    return;
-  }
+  const [
+    ECR_USER,
+    ECR_TOKEN
+  ] = Buffer.from(meta.ECR_AUTH_DATA.authorizationToken, 'base64')
+    .toString('utf8')
+    .split(':');
 
-  const buildId = meta.BUILD_ID;
-  const tag = meta.IMAGE_TAG.replace(/\s/g, '');
-  const repo = meta.IMAGE_REPO_NAME.replace(/\s/g, '');
-  const accoundId = meta.AWS_ACCOUNT_ID;
-  const region = meta.AWS_REGION.replace(/\s/g, '');
+  const cwd       = `builds/${meta.BUILD_ID}`;
+  const IMAGE     = `${meta.IMAGE_REPO_NAME}:${meta.IMAGE_TAG}`;
+  const IMAGE_URI = `${meta.AWS_ACCOUNT_ID}.dkr.ecr.${meta.AWS_REGION}.amazonaws.com/${IMAGE}`;
 
-  const sendOutput = (data: Buffer) => {
-    // connection.send(data.toString());
-    console.log('Send OUTPUT', data.toString());
-  };
-
-  const sendError = (data: Buffer) => {
-    // connection.send(data.toString());
-    console.log('Send ERROR', data.toString());
-  };
-
-  execSync(`docker login -u ${user} -p ${password} ${proxyEndpoint}`);
-
-  // execSync(`docker build -t ${repo}:${tag} .`);
-  await cmd(`docker build -t ${repo}:${tag} builds/${buildId}`, sendOutput, sendError);
-
-  execSync(`docker tag ${repo}:${tag} ${accoundId}.dkr.ecr.${region}.amazonaws.com/${repo}:${tag}`);
-  execSync(`docker push ${accoundId}.dkr.ecr.${region}.amazonaws.com/${repo}:${tag}`);
+  spawnSync('docker', ['login', '-u', ECR_USER, '-p', ECR_TOKEN, meta.ECR_AUTH_DATA.proxyEndpoint]);
+  console.log('1');
+  await spawnStream('docker', ['build', '-t', IMAGE, '.'], { cwd }, stdOut, stdErr);
+  console.log('2');
+  spawnSync('docker', ['tag', IMAGE, IMAGE_URI]);
+  console.log('3');
+  spawnSync('docker', ['push', IMAGE_URI]);
+  console.log('4');
+  spawnSync('docker', ['logout']);
+  console.log('5');
 };
 
 export default doBuild;
